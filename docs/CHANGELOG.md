@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [改进] 根目录 `README.md` 改为英文版（原 `docs/README_EN.md` 内容），原简体中文首页移至 `docs/README_ZH.md`；同步更新三语切换链接及 `docs/INDEX*.md`、`docs/full-guide*.md`、`docs/CONTRIBUTING.md` 中的 README 相对路径，内容本身未改动。
+
 - [新功能] 新增肯尼亚（NSE Kenya，`.KE` 后缀）市场身份识别与 LLM Prompt 市场语境（零行情/基本面数据源的最小切片）：市场探测、交易日历时区（不含交易所日历，`exchange-calendars` 无非洲交易所支持）、实时行情/日线/基本面显式 not-supported 边界，避免被默认 A 股链路误处理；详见 [市场支持边界](market-support.md#肯尼亚市场支持nse-kenya身份识别与边界-mvp)。
 
 - [修复] 每日 Actions 未设置实时行情顺序时保留空值，使仅配置 TickPlus Key 的任务正确启用自动首选及批量实时预取；保留显式顺序和无 Key 免费源回退。
