@@ -136,3 +136,28 @@ Portfolio 允许 JP/KR 账户、交易和持仓快照进入现有链路，但会
 - Web UI 可视证据口径：Market Light 告警目标范围切到“大盘市场”时，市场区域下拉只显示 A 股、港股、美股，不显示日股/韩股；设置页 `MARKET_REVIEW_REGION` 渲染为可输入逗号分隔值的文本框。当前仓库不保存一次性截图证据，可替代证据为 `apps/dsa-web/src/components/alerts/__tests__/AlertRuleForm.test.tsx`、`apps/dsa-web/src/components/settings/__tests__/SettingsField.test.tsx` 和 `apps/dsa-web/tests/system_config_i18n.test.ts` 的断言。
 
 回滚方式：移除 Portfolio snapshot 的 `data_quality` / `limitations` 扩展，恢复告警前端/后端对市场枚举的旧边界说明；如需整体回滚，移除 `jp/kr` 市场识别、交易日历注册、YFinance 路由扩展、Web/API 类型放行、`scripts/stock_index_seeds/` 日韩种子索引，并删除本文档中的能力声明。
+
+## 肯尼亚市场支持（NSE Kenya，身份识别与边界 MVP）
+
+当前阶段仅接入市场身份识别与风险边界，**不含任何实际行情/基本面数据源**，是刻意停在这一步的最小切片，而不是半成品：目的是避免在尚未确认数据源字段契约前，让肯尼亚代码被静默当作 A 股处理。
+
+支持格式：
+
+- 严格 suffix-only：`.KE` 后缀 + 2-6 位字母 base code（如 `SCOM.KE`、`KCB.KE`、`EQTY.KE`），对应 NSE 常见的字母交易代码。裸字母代码（如 `SCOM`）会先命中既有美股正则，解析为美股，与日股/韩股/台股的裸码兜底规则一致，是已知且刻意保留的市场边界，而非 bug。
+
+已落地内容：
+
+- 市场识别：`src/services/market_symbol_utils.py` 的 `SuffixMarketSpec` 从仅支持数字 base（日股/韩股/台股）扩展为同时支持字母 base（`alpha_lengths`），新增 `ke` 条目；`detect_market` / `get_market_for_stock` / `_market_tag` 均复用同一套共享规则。
+- LLM Prompt 市场语境：`src/market_context.py` 新增 `ke` 的中英文市场角色与分析指引，明确标注 NSE 官方日报无「收盘价」字段（仅提供 VWAP 与前一交易日参考价）、KES/部分证券美元计价、CMA 监管、NASI/NSE20/NSE25 指数，并禁止套用 A 股涨跌停/T+1/北向资金等概念。
+- 交易日历：仅注册 `ke: Africa/Nairobi` 时区（`MARKET_TIMEZONE`），**不**注册 `MARKET_EXCHANGE` 条目——已验证 `exchange-calendars` 库不含任何非洲交易所日历，伪造一个交易所代码会产生错误的交易日判断。因此开市日判断复用既有 fail-open 语义（`is_market_open` 返回 `True`），`get_trading_dates`/`get_next_trading_date` 返回 `None`，`infer_market_phase` 返回 `UNKNOWN`，均为既有代码对"日历缺失市场"的标准行为，非新增特判。
+- 数据路由显式失败而非静默误判：`data_provider/base.py` 的 `get_realtime_quote`、日线历史获取、`get_fundamental_context` 均新增 `is_ke` 分支，在没有已接入数据源时显式返回 `None` / 抛出 `DataFetchError` / 返回 `not_supported`，不会落入默认 A 股数据源链路（efinance/akshare/tushare 等）尝试获取 `SCOM.KE` 这类代码。
+
+明确不承诺项（本轮未做）：
+
+- 无任何真实行情/K线/基本面数据源（`nse_kenya_fetcher.py` 尚未开始，等待公司内部 NSE REST API 的 base URL、鉴权方式与响应字段确认）。
+- `MARKET_REVIEW_REGION` 不含 `ke`（大盘复盘需要 NASI/NSE20/NSE25 指数数据源，尚未确认是否可从内部 API 获取）。
+- Portfolio 不支持 KES 账户/持仓（汇率、成本、市值口径均未接入）。
+- Web/API 市场枚举、自动补全、股票索引种子均未放行 `ke`。
+- Symbol-to-ISIN 映射表未建立（NSE 官方日报仅提供公司全称 + ISIN，不提供字母交易代码，需人工维护映射种子）。
+
+回滚方式：移除 `src/services/market_symbol_utils.py` 中的 `ke` `SuffixMarketSpec` 条目与 `is_ke_suffix_symbol`；移除 `src/market_context.py` 中 `_MARKET_ROLES`/`_MARKET_GUIDELINES` 的 `ke` 条目；移除 `src/core/trading_calendar.py` 的 `MARKET_TIMEZONE["ke"]`；移除 `data_provider/base.py` 中的 `_is_ke_market` 及三处 `is_ke` 分支；删除本节。

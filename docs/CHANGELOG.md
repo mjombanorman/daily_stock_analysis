@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [新功能] 新增肯尼亚（NSE Kenya，`.KE` 后缀）市场身份识别与 LLM Prompt 市场语境（零行情/基本面数据源的最小切片）：市场探测、交易日历时区（不含交易所日历，`exchange-calendars` 无非洲交易所支持）、实时行情/日线/基本面显式 not-supported 边界，避免被默认 A 股链路误处理；详见 [市场支持边界](market-support.md#肯尼亚市场支持nse-kenya身份识别与边界-mvp)。
+
 - [修复] 每日 Actions 未设置实时行情顺序时保留空值，使仅配置 TickPlus Key 的任务正确启用自动首选及批量实时预取；保留显式顺序和无 Key 免费源回退。
 
 - [修复] TickPlus 正确区分裸 000001 等股票与显式同码指数；补齐行情指标、按接口冷却与分组批量缓存，ETF 轮动使用独立前复权实例，并统一首选推荐入口。

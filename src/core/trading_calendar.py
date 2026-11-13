@@ -37,10 +37,19 @@ except ImportError:
         "Run: pip install exchange-calendars"
     )
 
-# Market -> exchange code (exchange-calendars)
+# Market -> exchange code (exchange-calendars). NSE Kenya ("ke") is
+# intentionally absent: exchange-calendars has no African exchange coverage
+# (verified against the installed package), so there is no calendar code to
+# register. Every function below already fails open/closed correctly for a
+# market missing from this dict (is_market_open fail-opens to True,
+# get_trading_dates/get_next_trading_date return None, infer_market_phase
+# returns UNKNOWN) — that is the honest behavior for "ke" until a real
+# holiday calendar is built, not a bug to paper over with a fabricated entry.
 MARKET_EXCHANGE = {"cn": "XSHG", "hk": "XHKG", "us": "XNYS", "jp": "XTKS", "kr": "XKRX", "tw": "XTAI"}
 
-# Market -> IANA timezone for "today"
+# Market -> IANA timezone for "today". "ke" is included here (needed for
+# market-local "today" resolution) even though it has no entry in
+# MARKET_EXCHANGE above.
 MARKET_TIMEZONE = {
     "cn": "Asia/Shanghai",
     "hk": "Asia/Hong_Kong",
@@ -48,6 +57,7 @@ MARKET_TIMEZONE = {
     "jp": "Asia/Tokyo",
     "kr": "Asia/Seoul",
     "tw": "Asia/Taipei",
+    "ke": "Africa/Nairobi",
 }
 
 # P0 market phase baseline (Issue #1386). This is an intentionally small
