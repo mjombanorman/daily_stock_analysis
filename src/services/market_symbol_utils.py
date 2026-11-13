@@ -14,19 +14,31 @@ from typing import Optional
 
 @dataclass(frozen=True)
 class SuffixMarketSpec:
-    """A suffix-only Yahoo Finance market rule."""
+    """A suffix-only market rule.
+
+    ``digit_lengths`` matches numeric base codes (Yahoo Finance JP/KR/TW
+    suffixes). ``alpha_lengths`` matches alphabetic base codes (e.g. NSE
+    Kenya trading codes like SCOM, KCB) so a bare short alpha code is never
+    ambiguous with the US-ticker regex in ``market_context.detect_market``.
+    A spec must set at least one of the two.
+    """
 
     market: str
     suffixes: tuple[str, ...]
-    digit_lengths: tuple[int, ...]
+    digit_lengths: tuple[int, ...] = ()
+    alpha_lengths: tuple[int, ...] = ()
 
 
 _SUFFIX_MARKET_SPECS: tuple[SuffixMarketSpec, ...] = (
-    SuffixMarketSpec("jp", ("T",), (4, 5)),
-    SuffixMarketSpec("kr", ("KS", "KQ"), (6,)),
+    SuffixMarketSpec("jp", ("T",), digit_lengths=(4, 5)),
+    SuffixMarketSpec("kr", ("KS", "KQ"), digit_lengths=(6,)),
     # Taiwan support mirrors the same suffix-only pattern; keep it here so the
     # shared helpers stay complete for all yfinance-only offshore markets.
-    SuffixMarketSpec("tw", ("TW", "TWO"), (4, 5, 6)),
+    SuffixMarketSpec("tw", ("TW", "TWO"), digit_lengths=(4, 5, 6)),
+    # NSE Kenya trading codes are alphabetic (SCOM, KCB, EQTY, ...), not
+    # numeric, and are 2-6 letters long. Suffix-only by design: bare alpha
+    # codes stay ambiguous with the US-ticker regex, so .KE is required.
+    SuffixMarketSpec("ke", ("KE",), alpha_lengths=(2, 3, 4, 5, 6)),
 )
 
 _MARKET_TO_SPEC = {spec.market: spec for spec in _SUFFIX_MARKET_SPECS}
@@ -59,9 +71,11 @@ def get_suffix_market(stock_code: str) -> Optional[str]:
     spec = _SUFFIX_TO_SPEC.get(suffix)
     if spec is None:
         return None
-    if not (base.isdigit() and len(base) in spec.digit_lengths):
-        return None
-    return spec.market
+    if spec.digit_lengths and base.isdigit() and len(base) in spec.digit_lengths:
+        return spec.market
+    if spec.alpha_lengths and base.isalpha() and len(base) in spec.alpha_lengths:
+        return spec.market
+    return None
 
 
 def is_suffix_market_symbol(stock_code: str, market: Optional[str] = None) -> bool:
@@ -83,6 +97,10 @@ def is_kr_suffix_symbol(stock_code: str) -> bool:
 
 def is_tw_suffix_symbol(stock_code: str) -> bool:
     return is_suffix_market_symbol(stock_code, "tw")
+
+
+def is_ke_suffix_symbol(stock_code: str) -> bool:
+    return is_suffix_market_symbol(stock_code, "ke")
 
 
 def normalize_suffix_market_symbol(stock_code: str) -> Optional[str]:

@@ -78,6 +78,10 @@ _MARKET_ROLES = {
         "zh": "台股",
         "en": "Taiwan stock",
     },
+    "ke": {
+        "zh": "肯尼亚股票",
+        "en": "Kenya (NSE) stock",
+    },
 }
 
 _MARKET_GUIDELINES = {
@@ -144,6 +148,25 @@ _MARKET_GUIDELINES = {
             "electronics-foundry supply chain, the three institutional investor groups (foreign / "
             "investment-trust / dealer), margin trading and day trading, and the TWSE/TPEx ±10% daily "
             "price limit; do not apply China A-share-specific concepts such as Northbound flows or Dragon Tiger lists."
+        ),
+    },
+    "ke": {
+        "zh": (
+            "- 本次分析对象为 **肯尼亚股票**（内罗毕证券交易所 NSE 上市，代码带 `.KE` 后缀）。\n"
+            "- 请按肯尼亚市场语境分析，关注肯尼亚先令（KES）汇率（部分证券以美元计价）、肯尼亚资本市场管理局"
+            "（CMA）监管、NASI / NSE 20 / NSE 25 等指数走势，以及除权除息（xd）、含权含息（cd）、停牌（S）等"
+            "标记对价格可比性的影响；NSE 官方日报不提供明确的收盘价字段，仅提供成交量加权均价（VWAP）与"
+            "前一交易日参考价，分析中不要默认存在西方市场意义上的\"收盘价\"；不要套用 A 股涨跌停、T+1、"
+            "北向资金、龙虎榜等概念。"
+        ),
+        "en": (
+            "- This analysis covers a **Kenya stock** (listed on the Nairobi Securities Exchange, `.KE` suffix).\n"
+            "- Use Kenya-market context: KES FX (some securities are USD-denominated), Capital Markets "
+            "Authority (CMA) oversight, NASI / NSE 20 / NSE 25 index trends, and corporate-action flags "
+            "(xd = ex-dividend, cd = cum-dividend, S = suspended) that affect price comparability. NSE's own "
+            "daily report has no explicit close price field — only VWAP and the prior session's reference "
+            "price — so do not assume a Western-style \"close\" exists. Do not apply China A-share concepts "
+            "such as daily price-limit boards, T+1 settlement, Northbound flows, or Dragon Tiger lists."
         ),
     },
 }

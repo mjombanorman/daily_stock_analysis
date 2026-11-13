@@ -94,6 +94,7 @@ def normalize_stock_code(stock_code: str) -> str:
     - '005930.KS'   -> '005930.KS' (keep Korea Yahoo suffix form)
     - '2330.TW'     -> '2330.TW'  (keep Taiwan TWSE Yahoo suffix form)
     - '6505.TWO'    -> '6505.TWO' (keep Taiwan TPEx Yahoo suffix form)
+    - 'scom.ke'     -> 'SCOM.KE'  (uppercase NSE Kenya suffix form)
     - 'AAPL'        -> 'AAPL'     (keep US stock ticker as-is)
 
     This function is applied at the DataProviderManager layer so that
@@ -143,6 +144,8 @@ def normalize_stock_code(stock_code: str) -> str:
             return f"{base}.{suffix.upper()}"
         if suffix.upper() in ('TW', 'TWO') and base.isdigit() and 4 <= len(base) <= 6:
             return f"{base}.{suffix.upper()}"
+        if suffix.upper() == 'KE' and base.isalpha() and 2 <= len(base) <= 6:
+            return f"{base.upper()}.{suffix.upper()}"
         if suffix.upper() == 'HK' and base.isdigit() and 1 <= len(base) <= 5:
             return f"HK{base.zfill(5)}"
         if base.upper() in ('SH', 'SS', 'SZ', 'BJ') and suffix.isdigit():
@@ -204,6 +207,15 @@ def _is_tw_market(code: str) -> bool:
     return is_suffix_market_symbol(code, "tw")
 
 
+def _is_ke_market(code: str) -> bool:
+    """判定是否为肯尼亚 NSE suffix 代码（如 SCOM.KE / KCB.KE）。
+
+    仅带 .KE 后缀的字母代码才识别为肯尼亚市场；裸字母代码（如 SCOM）会先匹配
+    美股正则（market_context.detect_market），因此 NSE 支持是严格 suffix-only 的。
+    """
+    return is_suffix_market_symbol(code, "ke")
+
+
 def _is_etf_code(code: str) -> bool:
     """判定 A 股 ETF 基金代码（保守规则）。"""
     normalized = normalize_stock_code(code)
@@ -244,7 +256,7 @@ def _is_meaningful_chip_distribution(chip: Any) -> bool:
 
 
 def _market_tag(code: str) -> str:
-    """返回市场标签: cn/us/hk/jp/kr/tw."""
+    """返回市场标签: cn/us/hk/jp/kr/tw/ke."""
     if _is_us_market(code):
         return "us"
     if _is_hk_market(code):
@@ -255,6 +267,8 @@ def _market_tag(code: str) -> str:
         return "kr"
     if _is_tw_market(code):
         return "tw"
+    if _is_ke_market(code):
+        return "ke"
     return "cn"
 
 
@@ -1992,14 +2006,25 @@ class DataFetcherManager:
         is_jp = (not is_us) and (not is_hk) and _is_jp_market(stock_code)
         is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
         is_tw = (not is_us) and (not is_hk) and _is_tw_market(stock_code)
-        market = "us" if is_us else "hk" if is_hk else "jp" if is_jp else "kr" if is_kr else "tw" if is_tw else "cn"
+        is_ke = (not is_us) and (not is_hk) and _is_ke_market(stock_code)
+        market = (
+            "us" if is_us else "hk" if is_hk else "jp" if is_jp else "kr" if is_kr
+            else "tw" if is_tw else "ke" if is_ke else "cn"
+        )
         if market != "cn":
             fetchers = self._filter_daily_fetchers_for_market(fetchers, market)
         fetchers = self._filter_fetchers_by_capability(fetchers, capability="daily_data")
         total_fetchers = len(fetchers)
 
         if total_fetchers == 0:
-            market_label = "美股指数" if is_us_index else "美股" if is_us else "港股" if is_hk else "台股" if is_tw else "A股"
+            # ke has no entry in _DAILY_MARKET_FETCHER_SUPPORT yet (no fetcher
+            # wired in), so every built-in daily fetcher is correctly skipped
+            # above and this raises instead of silently falling through to
+            # the cn default chain.
+            market_label = (
+                "美股指数" if is_us_index else "美股" if is_us else "港股" if is_hk
+                else "台股" if is_tw else "肯尼亚股票" if is_ke else "A股"
+            )
             error_summary = f"{market_label} {stock_code} 获取失败:\n暂无可用数据源"
             logger.error(f"[数据源终止] {stock_code} 获取失败: {error_summary}")
             raise DataFetchError(error_summary)
@@ -2498,6 +2523,7 @@ class DataFetcherManager:
         is_jp = (not is_us) and (not is_hk) and _is_jp_market(stock_code)
         is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
         is_tw = (not is_us) and (not is_hk) and _is_tw_market(stock_code)
+        is_ke = (not is_us) and (not is_hk) and _is_ke_market(stock_code)
 
         if is_jp or is_kr or is_tw:
             market_label = "日股" if is_jp else "韩股" if is_kr else "台股"
@@ -2510,6 +2536,16 @@ class DataFetcherManager:
                 )
             if log_final_failure:
                 logger.info(f"[实时行情] {market_label} {stock_code} 无可用数据源")
+            return None
+
+        if is_ke:
+            # NSE Kenya has no yfinance/akshare coverage and no fetcher is
+            # wired in yet (data source integration pending). Fail cleanly
+            # and explicitly here instead of falling through to the A-share
+            # default chain below, which would silently try to fetch a
+            # Kenyan ticker from Chinese data sources.
+            if log_final_failure:
+                logger.info(f"[实时行情] 肯尼亚股票 {stock_code} 暂无已接入数据源 (NSE Kenya fetcher 未配置)")
             return None
 
         if is_us or is_hk:
@@ -4330,6 +4366,15 @@ class DataFetcherManager:
         stock_code = normalize_stock_code(stock_code)
         market = _market_tag(stock_code)
         is_etf = _is_etf_code(stock_code)
+        if market == "ke":
+            # No NSE Kenya fundamental data source is wired in yet. Fail
+            # cleanly here rather than either routing into the yfinance-based
+            # offshore path (wrong source for this market) or falling
+            # through to the default A-share fundamental pipeline below.
+            return self._build_market_not_supported(
+                market=market,
+                reason="NSE Kenya fundamental data source not yet configured",
+            )
         if market in {"us", "hk", "jp", "kr", "tw"}:
             return self._build_offshore_fundamental_context(
                 stock_code,
